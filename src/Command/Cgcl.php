@@ -11,6 +11,7 @@ use Phpml\Dataset\ArrayDataset;
 use Phpml\FeatureExtraction\TfIdfTransformer;
 use Phpml\FeatureExtraction\TokenCountVectorizer;
 use Phpml\ModelManager;
+use Phpml\Pipeline;
 use Phpml\Tokenization\WordTokenizer;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -63,30 +64,22 @@ class Cgcl extends Command
                 $classifier = new MLPClassifier(1, [2], $classes);
             }
 
+            // Parse the diff and extract only lines starting with + or -
+            $diff = $cgclcommit->parseDiff($commit->getDiff()->getRawDiff());
+            $samples = \array_merge($diff['-'], $diff['+']);
+            $targets = \array_fill(0, \count($samples), $commit->getMessage());
+
             // Should these two objects be created out of the loop ?
             $vectorizer = new TokenCountVectorizer(new WordTokenizer());
             $tfIdfTransformer = new TfIdfTransformer();
 
-            // Parse the diff and extract only lines starting with + or -
-            $diff = $cgclcommit->parseDiff($commit->getDiff()->getRawDiff());
-            $samples = \array_merge($diff['-'], $diff['+']);
-
-            $output->writeln(' Vectorizing commit #' . $key . '.');
-            $vectorizer->fit($samples);
-            $vectorizer->transform($samples);
-
-            $tfIdfTransformer->fit($samples);
-            $tfIdfTransformer->transform($samples);
-
-            $targets = \array_fill(0, \count($samples), $commit->getMessage());
-
-            $dataset = new ArrayDataset($samples, $targets);
+            $pipeline = new Pipeline([$vectorizer, $tfIdfTransformer], $classifier);
 
             $output->writeln(' Partial training commit #' . $key);
-            $classifier->partialTrain($dataset->getSamples(), $dataset->getTargets());
+            $pipeline->train($samples, $targets);
 
             $output->writeln(' Saving partial data to file... ' . $filepath);
-            $modelManager->saveToFile($classifier, $filepath);
+            $modelManager->saveToFile($pipeline->getEstimator(), $filepath);
         }
     }
 }
