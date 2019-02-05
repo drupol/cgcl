@@ -7,7 +7,6 @@ namespace drupol\cgcl\Command;
 use drupol\cgcl\Git\CgclCommitParser;
 use Gitonomy\Git\Repository;
 use Phpml\Classification\MLPClassifier;
-use Phpml\Dataset\ArrayDataset;
 use Phpml\FeatureExtraction\TfIdfTransformer;
 use Phpml\FeatureExtraction\TokenCountVectorizer;
 use Phpml\ModelManager;
@@ -18,7 +17,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class Cgcl extends Command
+class Learn extends Command
 {
     /**
      * {@inheritdoc}
@@ -44,7 +43,7 @@ class Cgcl extends Command
         $commitCount = $repository->getLog()->count();
 
         // Create a unique file per repository.
-        $filepath = 'cache/' . sha1($input->getArgument('repository')) . '.phpml';
+        $filepath = 'cache/' . \sha1($input->getArgument('repository')) . '.phpml';
 
         $classes = [];
         foreach ($repository->getLog() as $commit) {
@@ -54,13 +53,14 @@ class Cgcl extends Command
 
         /** @var \Gitonomy\Git\Commit $commit */
         foreach ($repository->getLog() as $key => $commit) {
-            $output->writeln('Processing commit ' . $key . ' / ' . $commitCount . '.');
+            $currentCommitIndex = $key + 1;
+            $output->writeln(\sprintf('Processing commit %s/%s', $currentCommitIndex, $commitCount));
 
-            if (file_exists($filepath)) {
+            if (\file_exists($filepath)) {
                 $output->writeln(' Restoring data from file...' . $filepath . '...');
                 $classifier = $modelManager->restoreFromFile($filepath);
             } else {
-                $output->writeln(' Creating new classifier...');
+                $output->writeln(' Creating new classifier in ... ' . $filepath);
                 $classifier = new MLPClassifier(1, [2], $classes);
             }
 
@@ -69,6 +69,8 @@ class Cgcl extends Command
             $samples = \array_merge($diff['-'], $diff['+']);
 
             if ([] === $samples) {
+                $output->writeln(' Diff is empty, skipping.');
+
                 continue;
             }
 
@@ -80,10 +82,10 @@ class Cgcl extends Command
 
             $pipeline = new Pipeline([$vectorizer, $tfIdfTransformer], $classifier);
 
-            $output->writeln(' Partial training commit #' . $key);
+            $output->writeln(' Training...');
             $pipeline->train($samples, $targets);
 
-            $output->writeln(' Saving partial data to file... ' . $filepath);
+            $output->writeln(' Saving data to file...');
             $modelManager->saveToFile($pipeline->getEstimator(), $filepath);
         }
     }

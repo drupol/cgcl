@@ -3,8 +3,10 @@
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use Symfony\Component\Console\Application;
-use drupol\cgcl\Command\Cgcl;
+use drupol\cgcl\Command\Learn;
+use drupol\cgcl\Command\Predict;
 
 $app = new Application();
-$app->add(new Cgcl());
+$app->add(new Learn());
+$app->add(new Predict());
 $app->run();
