@@ -67,6 +67,11 @@ class Cgcl extends Command
             // Parse the diff and extract only lines starting with + or -
             $diff = $cgclcommit->parseDiff($commit->getDiff()->getRawDiff());
             $samples = \array_merge($diff['-'], $diff['+']);
+
+            if ([] === $samples) {
+                continue;
+            }
+
             $targets = \array_fill(0, \count($samples), $commit->getMessage());
 
             // Should these two objects be created out of the loop ?
